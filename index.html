@@ -1,31 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trex Runner Game</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-        }
-        canvas {
-            display: block;
-            margin: 0 auto;
-            background-color: #f7f7f7;
-            border: 1px solid #ccc;
-        }  
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trex Runner Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    .title {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 80px;
+        margin-bottom: 80px;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: #f7f7f7;
+      border: 1px solid #ccc;
+    }
+  </style>
 </head>
 <body>
+    <div class="title"><h1>Dino Game!</h1></div>
     <canvas id="gameCanvas" width="800" height="300"></canvas>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
+        // Load Trex image
         let trexImage = new Image();
         trexImage.src = 'https://upload.wikimedia.org/wikipedia/commons/3/3b/Chromium_T-Rex-error-offline.svg';
 
+        // Trex object
         let trex = {
             x: 50,
             y: 260,
@@ -39,110 +49,200 @@
         let obstacles = [];
         let frameCount = 0;
         let isGameOver = false;
+        let score = 0;
+        let baseSpeed = 5;
+        let groundOffset = 0;
+        const dashWidth = 20;
+        const dashSpacing = dashWidth * 2;
 
-        document.addEventListener('keydown', function (event) {
-            if ((event.key === ' ' || event.key === 'ArrowUp') && !trex.isJumping && !isGameOver) {
-                jump();
-            }
+        // Event listeners for jump and restart
+        document.addEventListener('keydown', function(event) {
+        if (isGameOver && (event.key === ' ' || event.key === 'ArrowUp')) {
+            restartGame();
+        } else if ((event.key === ' ' || event.key === 'ArrowUp') && !trex.isJumping && !isGameOver) {
+            jump();
+        }
         });
 
-        document.addEventListener('touchstart', function () {
-            if (!trex.isJumping && !isGameOver) {
-                jump();
-            }
+        document.addEventListener('touchstart', function() {
+        if (isGameOver) {
+            restartGame();
+        } else if (!trex.isJumping && !isGameOver) {
+            jump();
+        }
         });
 
         function jump() {
-            trex.isJumping = true;
-            trex.velocityY = -15;
+        trex.isJumping = true;
+        trex.velocityY = -15;
         }
 
         function update() {
-            if (isGameOver) return;
+        if (isGameOver) return;
 
-            // Apply gravity
-            trex.velocityY += trex.gravity;
-            trex.y += trex.velocityY;
+        // Apply gravity to Trex
+        trex.velocityY += trex.gravity;
+        trex.y += trex.velocityY;
+        if (trex.y >= 260) {
+            trex.y = 260;
+            trex.isJumping = false;
+            trex.velocityY = 0;
+        }
 
-            if (trex.y >= 260) {
-                trex.y = 260;
-                trex.isJumping = false;
-                trex.velocityY = 0;
-            }
+        // Increase score
+        score++;
 
-            // Spawn obstacles
-            if (frameCount % 150 === 0) {
-                let obstacle = {
-                    x: canvas.width,
-                    y: 270,
-                    width: 30, // you can randomize width and height here
-                    height: 30
-                };
-                obstacles.push(obstacle);
-            }
+        // Increase speed based on score
+        let obstacleSpeed = baseSpeed + score / 100;
 
-            // Update obstacles
-            obstacles.forEach((obstacle, index) => {
-                obstacle.x -= 5;
-                if (obstacle.x + obstacle.width < 0) {
-                    obstacles.splice(index, 1);
-                }
+        // Update ground offset for moving ground effect
+        groundOffset = (groundOffset + obstacleSpeed) % dashSpacing;
 
-                // Check for collision
-                if (
-                    trex.x < obstacle.x + obstacle.width &&
-                    trex.x + trex.width > obstacle.x &&
-                    trex.y < obstacle.y + obstacle.height &&
-                    trex.y + trex.height > obstacle.y
-                ) {
-                    isGameOver = true;
-                }
+        // Spawn obstacles every 150 frames
+        if (frameCount % 150 === 0) {
+            let r = Math.random();
+            if (r < 0.33) {
+            // Cactus obstacle (original)
+            obstacles.push({
+                x: canvas.width,
+                y: 270,
+                width: 30,
+                height: 30,
+                type: 'cactus'
             });
+            } else if (r < 0.66) {
+            // Bird obstacle with two possible starting heights and slight oscillation
+            let yPos = Math.random() < 0.5 ? 150 : 200;
+            obstacles.push({
+                x: canvas.width,
+                initialY: yPos,
+                y: yPos,
+                width: 30,
+                height: 30,
+                type: 'bird'
+            });
+            } else {
+            // Rock obstacle: larger and slightly slower
+            obstacles.push({
+                x: canvas.width,
+                y: 260,
+                width: 50,
+                height: 50,
+                type: 'rock'
+            });
+            }
+        }
+
+        // Update obstacles
+        obstacles.forEach((obstacle, index) => {
+            // Move obstacles (rock moves at 80% of the speed)
+            if (obstacle.type === 'rock') {
+            obstacle.x -= obstacleSpeed * 0.8;
+            } else {
+            obstacle.x -= obstacleSpeed;
+            }
+
+            // For bird, add slight vertical oscillation
+            if (obstacle.type === 'bird') {
+            obstacle.y = obstacle.initialY + Math.sin(frameCount / 10) * 5;
+            }
+
+            // Remove obstacles that are off-screen
+            if (obstacle.x + obstacle.width < 0) {
+            obstacles.splice(index, 1);
+            }
+
+            // Check collision with Trex
+            if (
+            trex.x < obstacle.x + obstacle.width &&
+            trex.x + trex.width > obstacle.x &&
+            trex.y < obstacle.y + obstacle.height &&
+            trex.y + trex.height > obstacle.y
+            ) {
+            isGameOver = true;
+            }
+        });
+        }
+
+        // Draw moving ground using dashes
+        function drawGround() {
+        ctx.fillStyle = '#654321';
+        for (let x = -groundOffset; x < canvas.width; x += dashWidth * 2) {
+            ctx.fillRect(x, 298, dashWidth, 4);
+        }
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Draw Trex
-            ctx.drawImage(trexImage, trex.x, trex.y, trex.width, trex.height);
+        // Draw ground
+        drawGround();
 
-            // Draw obstacles
-            ctx.fillStyle = '#555';
-            obstacles.forEach(obstacle => {
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-            });
+        // Draw Trex
+        ctx.drawImage(trexImage, trex.x, trex.y, trex.width, trex.height);
 
-            // Draw game over text
-            if (isGameOver) {
-                ctx.fillStyle = 'red';
-                ctx.font = '30px Arial';
-                ctx.fillText('Game Over', canvas.width / 2 - 70, canvas.height / 2);
+        // Draw obstacles with different styles based on type
+        obstacles.forEach(obstacle => {
+            if (obstacle.type === 'cactus') {
+            ctx.fillStyle = '#7BB274';
+            } else if (obstacle.type === 'bird') {
+            ctx.fillStyle = '#FF4500';
+            } else if (obstacle.type === 'rock') {
+            ctx.fillStyle = '#888';
             }
+            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        });
+
+        // Draw score on the screen
+        ctx.fillStyle = 'black';
+        ctx.font = '20px Arial';
+        ctx.fillText("Score: " + score, 10, 30);
+
+        // Draw game over text if game is over
+        if (isGameOver) {
+            ctx.fillStyle = 'red';
+            ctx.font = '30px Arial';
+            ctx.fillText('Game Over', canvas.width / 2 - 70, canvas.height / 2);
+            ctx.font = '20px Arial';
+            ctx.fillText('Press Space or Tap to Restart', canvas.width / 2 - 130, canvas.height / 2 + 40);
+        }
         }
 
+        // Main game loop with a constant FPS of 60
         function gameLoop() {
-            let fps = 90;
-            let interval = 1000 / fps;
-            let lastTime = 0;
+        const fps = 60;
+        const interval = 1000 / fps;
+        let lastTime = 0;
 
-            function loop(currentTime) {
+        function loop(currentTime) {
             if (currentTime - lastTime >= interval) {
-                lastTime = currentTime;
-                frameCount++;
-                update();
-                draw();
-                fps+= .05;
-                interval = 1000 / fps;
+            lastTime = currentTime;
+            frameCount++;
+            update();
+            draw();
             }
             if (!isGameOver) {
-                requestAnimationFrame(loop);
-            }
-            }
-
             requestAnimationFrame(loop);
+            }
+        }
+        requestAnimationFrame(loop);
         }
 
-        requestAnimationFrame(gameLoop);
+        // Restart the game by resetting all game variables
+        function restartGame() {
+        trex.y = 260;
+        trex.velocityY = 0;
+        trex.isJumping = false;
+        obstacles = [];
+        frameCount = 0;
+        score = 0;
+        isGameOver = false;
+        groundOffset = 0;
+        gameLoop();
+        }
+
+        // Start the game for the first time
+        gameLoop();
     </script>
 </body>
 </html>
